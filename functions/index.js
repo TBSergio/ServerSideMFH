@@ -2,46 +2,60 @@ const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 
 admin.initializeApp();
-
 exports.actOnCreate2 = functions.database.ref('/measurements/{uid1}/{uid2}').onCreate((event, context) => {
-    // console.log("Entered: onCreate");
-    // console.log(context.params.uid1);
-    // console.log(context.params.uid2);
-    console.log(event._data);
-    var HR = parseInt(event._data.heartRate, 10);
-    var AvgHR = parseInt(event._data.heartRateAvg, 10);
-    console.log(`HR: ${HR}`);
-    console.log(`AvgHR: ${AvgHR}`);
-    console.log((0.3*AvgHR));
-    console.log((AvgHR + (0.3*AvgHR)));
-    if(HR > (AvgHR + (0.3*AvgHR))){
-      var uuid = context.params.uid1;
-      // Get the list of device notification tokens.
-      const getDeviceTokensPromise = admin.database()
-        .ref(`/users/${uuid}/token`).once('value');
-        return Promise.all([getDeviceTokensPromise]).then(results => {
-            var tokensSnapshot = results[0];
-            // Notification details.
-            const payload = {
-              notification: {
-                title: 'You have a new notification!',
-                body: `This is the body message.`,
-                sound: 'default',
-                 badge: '1'
-              }
-            };
-            console.log("myval");
-            console.log(tokensSnapshot.val());
-            // Send notifications to all tokens.
-            return admin.messaging().sendToDevice(tokensSnapshot.val(), payload);
-          });
-    } else{
-      console.log("no notification needed")
-      return 0;
-    }
-   
-   });
+ // console.log("Entered: onCreate");
+ // console.log(context.params.uid1);
+ // console.log(context.params.uid2);
+ console.log(event._data);
+ var HR = parseInt(event._data.heartRate, 10);
+ var AvgHR = parseInt(event._data.heartRateAvg, 10);
+ console.log(`HR: ${HR}`);
+ console.log(`AvgHR: ${AvgHR}`);
+ console.log((0.3 * AvgHR));
+ console.log((AvgHR + (0.3 * AvgHR)));
+ var uuid = context.params.uid1;
+ // Get the list of device notification tokens.
+ const getDeviceTokensPromise = admin.database()
+   .ref(`/users/${uuid}`).once('value');
+ return Promise.all([getDeviceTokensPromise]).then(results => {
+   var tokensSnapshot = results[0];
+   console.log(tokensSnapshot);
+   // Notification details.
 
+   console.log("myval");
+   console.log(tokensSnapshot.val());
+   console.log("token:", tokensSnapshot.val().token);
+   var notified = tokensSnapshot.val().notified || false;
+   console.log("notified:",notified);
+   console.log("(HR > (AvgHR + (0.3 * AvgHR)))",(HR > (AvgHR + (0.3 * AvgHR))));
+   // Send notifications to all tokens.
+   if ((HR > (AvgHR + (0.3 * AvgHR)))) {
+     if(notified === false){
+       admin.database().ref(`/users/${uuid}`).update({
+         notified: true
+       });
+       const payload = {
+         notification: {
+           title: 'You have a new notification!',
+           body: `This is the body message.`,
+           sound: 'default',
+           badge: '1'
+         }
+       };
+       return admin.messaging().sendToDevice(tokensSnapshot.val().token, payload);
+     }
+     console.log("Already notified this user");
+     return 0;
+
+   } else {
+     admin.database().ref(`/users/${uuid}`).update({
+       notified: false
+     });
+     console.log("no notification needed")
+     return 0;
+   }
+ });
+});
 
 exports.addContact = functions.https.onRequest((req,res) => {
 
